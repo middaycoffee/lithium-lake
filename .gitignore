@@ -1,0 +1,36 @@
+# secrets
+.env
+*.json
+
+# terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+.terraform.lock.hcl
+windows_amd64/
+
+# bruin
+.bruin/
+.bruin.yml
+logs/
+
+# data
+*.parquet
+bronze/
+
+# python
+__pycache__/
+*.py[cod]
+
+# misc
+ideas/
+research/
+TODO.md
+ingestion.py
+test.py
+=
+ERROR
+naming
+exporting
+unpacking

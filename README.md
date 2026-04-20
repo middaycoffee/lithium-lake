@@ -1,0 +1,1 @@
+## Lithium Lake - An end-to-end Data Pipeline for Solid State EV Battery Research

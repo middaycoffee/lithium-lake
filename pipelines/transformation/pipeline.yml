@@ -1,0 +1,3 @@
+name: transformation
+schedule: "0 0 1 */3 *"
+# schedule for every three months, after ingestion

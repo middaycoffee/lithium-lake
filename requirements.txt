@@ -1,0 +1,6 @@
+pymatgen
+mp-api
+python-dotenv
+pandas
+pyarrow
+google-cloud-storage

@@ -1,0 +1,25 @@
+name: Validate Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bruin
+        run: |
+          curl -fsSL https://github.com/bruin-data/bruin/releases/download/v0.11.464/bruin_Linux_x86_64.tar.gz \
+            -o bruin.tar.gz
+          tar -xzf bruin.tar.gz
+          sudo mv bruin /usr/local/bin/bruin
+
+      - name: Validate pipelines
+        run: |
+          bruin validate pipelines/ingestion
+          bruin validate pipelines/transformation

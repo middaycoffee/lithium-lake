@@ -1,0 +1,7 @@
+services:
+  pipeline:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./gcp-service.json:/app/gcp-service.json:ro
