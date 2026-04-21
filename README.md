@@ -2,7 +2,31 @@
 
 Capstone project for <a href="https://github.com/DataTalksClub/data-engineering-zoomcamp" target="_blank">Data Engineering Zoomcamp 2026</a>.
 
-A data engineering pipeline that queries the Materials Project database, processes ~2,700 lithium-containing compounds through a Medallion Architecture on GCP, and surfaces the most viable solid-state battery electrolyte candidates ranked by scientific criteria.
+A data engineering pipeline that queries the <a href="https://github.com/materialsproject" target="_blank">Materials Project</a> database, processes ~2,700 lithium-containing compounds through a Medallion Architecture on GCP, and surfaces the most viable solid-state battery electrolyte candidates ranked by scientific criteria.
+
+![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
+![GCP](https://img.shields.io/badge/Cloud-GCP-orange?logo=googlecloud)
+![BigQuery](https://img.shields.io/badge/Warehouse-BigQuery-blue?logo=googlebigquery)
+![Docker](https://img.shields.io/badge/Container-Docker-2496ED?logo=docker)
+![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform)
+![CI](https://github.com/middaycoffeemiddaycoffee/lithium-lake/actions/workflows/validate.yml/badge.svg)
+
+---
+
+## Table of Contents
+
+- [Why This Project](#why-this-project)
+- [Architecture](#architecture)
+- [Scientific Criteria](#scientific-criteria)
+- [Stack](#stack)
+- [Project Structure](#project-structure)
+- [Pipeline Detail](#pipeline-detail)
+- [Data Quality](#data-quality)
+- [Dashboard](#dashboard)
+- [Results](#results)
+- [How to Run](#how-to-run)
+- [CI/CD](#cicd)
+- [Data Source](#data-source)
 
 ---
 
@@ -18,32 +42,20 @@ The <a href="https://github.com/materialsproject" target="_blank">Materials Proj
 
 The pipeline follows a **Medallion Architecture**: raw data lands in Bronze, gets cleaned and typed in Silver, and the science logic lives in Gold. Orchestrated with <a href="https://github.com/bruin-data/bruin" target="_blank">Bruin</a>, infrastructure provisioned via <a href="https://github.com/hashicorp/terraform" target="_blank">Terraform</a>.
 
-```
-Materials Project API
-        │
-        ▼
-┌─────────────────┐
-│     BRONZE      │  Python asset — fetches Li materials, writes Parquet to GCS
-│  GCS (Parquet)  │  ~2,720 rows
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│    EXTERNAL     │  BigQuery external table over the GCS Parquet
-│  BigQuery DDL   │  schema inferred from Parquet
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│     SILVER      │  Flatten nested structs, cast types, add elasticity flag
-│  BigQuery Table │  ~2,720 rows, clustered by crystal_system
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│      GOLD       │  Apply scientific filters, compute Pugh Ratio, rank candidates
-│  BigQuery Table │  47 rows, clustered by crystal_system
-└─────────────────┘
+```mermaid
+flowchart LR
+    A([Materials Project API]) --> B
+
+    subgraph ingestion [Ingestion Pipeline]
+        B[Bronze\nPython Asset\nGCS Parquet] --> C[External Table\nBigQuery DDL]
+    end
+
+    subgraph transformation [Transformation Pipeline]
+        D[Silver\nFlatten & Type\nBigQuery Table] --> E[Gold\nFilter & Rank\nBigQuery Table]
+    end
+
+    C --> D
+    E --> F([Looker Studio\nDashboard])
 ```
 
 <!-- Architecture diagram image -->
@@ -68,16 +80,16 @@ Materials containing toxic elements (`Pb`, `Tl`, `Hg`, `Cd`, `As`) are excluded 
 
 ## Stack
 
-| Layer | Tool |
-|---|---|
-| Orchestration | Bruin |
-| Infrastructure | Terraform |
-| Raw storage | Google Cloud Storage |
-| Warehouse | BigQuery |
-| Containerization | Docker |
-| CI/CD | GitHub Actions |
-| Dashboard | Looker Studio |
-| Data source | [Materials Project API](https://next-gen.materialsproject.org/api) |
+| Layer | Tool | Why |
+|---|---|---|
+| Orchestration | Bruin | Native BigQuery support, clean asset-based DAGs, built-in data quality checks |
+| Infrastructure | Terraform | Reproducible GCS + BigQuery provisioning, version-controlled infra |
+| Raw storage | Google Cloud Storage | Cheap Parquet storage, natively queryable by BigQuery external tables |
+| Warehouse | BigQuery | Serverless, scales to any size, external table support avoids double storage |
+| Containerization | Docker | One-command reproducibility for reviewers with zero local setup |
+| CI/CD | GitHub Actions | Validates pipeline assets on every push, free for public repos |
+| Dashboard | Looker Studio | Native BigQuery connector, shareable public URL, no code required |
+| Data source | [Materials Project API](https://next-gen.materialsproject.org/api) | Open DFT database with 150k+ inorganic materials and elasticity data |
 
 ---
 
@@ -103,7 +115,8 @@ lithium-lake/
 ├── docker-compose.yml
 ├── main.tf                               # GCS bucket + BigQuery dataset
 ├── variables.tf
-└── requirements.txt
+├── requirements.txt
+└── .env.example
 ```
 
 ---
@@ -121,7 +134,7 @@ Checks run after upload:
 
 ### External Table — `lithium_lake_data.materials_external`
 
-A `CREATE OR REPLACE EXTERNAL TABLE` DDL that points BigQuery at the GCS Parquet. No data is copied — BigQuery reads the file directly. This runs after Bronze to pick up the latest schema.
+A `CREATE OR REPLACE EXTERNAL TABLE` DDL that points BigQuery at the GCS Parquet. No data is copied — BigQuery reads the file directly. Runs after Bronze to always pick up the latest schema.
 
 ### Silver — `lithium_lake_data.materials_silver`
 
@@ -144,7 +157,7 @@ Result: **47 candidates** from 2,720 input materials.
 
 ## Data Quality
 
-Quality checks are defined as Bruin column checks and run automatically after each asset materializes.
+Quality checks run automatically after each asset materializes.
 
 **Bronze (Python assertions):**
 - `len(df) > 0`
@@ -198,21 +211,22 @@ Key observations:
 ### Prerequisites
 
 - Docker and Docker Compose
-- A [Materials Project API key](https://materialsproject.org/api)
-- A GCP service account JSON with BigQuery Admin and Storage Admin roles
+- A [Materials Project API key](https://next-gen.materialsproject.org/api)
+- A GCP service account JSON with `BigQuery Admin` and `Storage Admin` roles
 
 ### Setup
 
 1. Clone the repo:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/lithium-lake.git
+   git clone https://github.com/middaycoffeemiddaycoffee/lithium-lake.git
    cd lithium-lake
    ```
 
-2. Create a `.env` file:
+2. Create a `.env` file from the example:
+   ```bash
+   cp .env.example .env
    ```
-   MATERIALS_PROJECT_API=your_api_key_here
-   ```
+   Fill in your Materials Project API key.
 
 3. Place your GCP service account key at the project root:
    ```
@@ -237,9 +251,6 @@ This runs Bronze → External → Silver → Gold in the correct dependency orde
 ## CI/CD
 
 On every push to `main`, GitHub Actions runs `bruin validate` against both pipelines to catch broken asset definitions before they reach production.
-
-<!-- CI badge — replace YOUR_USERNAME -->
-<!-- ![Validate Pipeline](https://github.com/YOUR_USERNAME/lithium-lake/actions/workflows/validate.yml/badge.svg) -->
 
 ---
 
