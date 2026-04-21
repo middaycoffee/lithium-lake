@@ -9,7 +9,8 @@ A data engineering pipeline that queries the <a href="https://github.com/materia
 ![BigQuery](https://img.shields.io/badge/Warehouse-BigQuery-blue?logo=googlebigquery)
 ![Docker](https://img.shields.io/badge/Container-Docker-2496ED?logo=docker)
 ![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform)
-![CI](https://github.com/middaycoffeemiddaycoffee/lithium-lake/actions/workflows/validate.yml/badge.svg)
+![CI](https://github.com/middaycoffee/lithium-lake/actions/workflows/validate.yml/badge.svg)
+![Bruin](https://img.shields.io/badge/Orchestration-Bruin-black)
 
 ---
 
@@ -32,15 +33,21 @@ A data engineering pipeline that queries the <a href="https://github.com/materia
 
 ## Why This Project
 
-Solid-state batteries are one of the most promising directions in energy storage — higher energy density, no flammable liquid electrolyte, longer lifespan. The bottleneck is finding the right solid electrolyte material: it needs to be stable, electrically insulating, and mechanically tough enough to suppress lithium dendrite growth.
+Today's lithium-ion batteries are approaching their physical limits. State-of-the-art cells reach around 300 Wh/kg, but the automotive industry needs systems exceeding 450 Wh/kg to deliver 600+ km driving ranges. The bottleneck isn't chemistry alone — it's the electrolyte.
 
-The <a href="https://github.com/materialsproject" target="_blank">Materials Project</a> has computational data on hundreds of thousands of inorganic materials. This project builds a pipeline to filter, clean, and rank the candidates that meet the physics requirements — turning a raw API dump into an actionable shortlist of 47 materials.
+Standard liquid electrolytes are organic solvents (ethylene carbonate, dimethyl carbonate) dissolved with lithium salts. They work, but they're flammable, prone to thermal runaway under mechanical stress or overcharging, and their ionic conductivity collapses at sub-zero temperatures — causing lithium to plate as metallic dendrites that can pierce the separator and short the cell.
+
+The solution the industry is converging on is **all-solid-state batteries (ASSBs)**: replacing the liquid with a non-flammable inorganic solid electrolyte. This eliminates the fire risk entirely and, more importantly, enables a **lithium metal anode** — a material with 3,860 mAh/g theoretical capacity (roughly 10× graphite) and the lowest electrochemical reduction potential of any element. The combination of a solid electrolyte with a lithium metal anode and high-voltage cathode is the most viable path to breaking through current energy density ceilings.
+
+The challenge is that finding the right solid electrolyte is genuinely hard. The material must simultaneously satisfy thermodynamic stability, electronic insulation, mechanical rigidity, and ductility requirements that often compete with each other — and it must be manufacturable at scale from earth-abundant, non-toxic elements. Traditional lab-by-lab experimentation can't search this space efficiently.
+
+The <a href="https://github.com/materialsproject" target="_blank">Materials Project</a>, a DOE-funded initiative, hosts DFT-calculated properties for over 150,000 inorganic compounds. This pipeline applies high-throughput computational screening criteria drawn from solid-state battery literature to systematically filter that database — turning 150,000 compounds into a ranked shortlist of 47 high-potential candidates worth experimental attention.
 
 ---
 
 ## Architecture
 
-The pipeline follows a **Medallion Architecture**: raw data lands in Bronze, gets cleaned and typed in Silver, and the science logic lives in Gold. Orchestrated with <a href="https://github.com/bruin-data/bruin" target="_blank">Bruin</a>, infrastructure provisioned via <a href="https://github.com/hashicorp/terraform" target="_blank">Terraform</a>.
+The pipeline follows a **Medallion Architecture**: raw data lands in Bronze, gets cleaned and typed in Silver, and the science logic lives in Gold. <a href="https://github.com/bruin-data/bruin" target="_blank">Bruin</a> orchestrates the full pipeline — running Python extraction, executing BigQuery SQL transformations, enforcing asset dependencies, and validating data quality checks at each layer. Infrastructure is provisioned via <a href="https://github.com/hashicorp/terraform" target="_blank">Terraform</a>.
 
 ```mermaid
 flowchart LR
@@ -70,11 +77,37 @@ The Gold layer applies four physical requirements for a viable solid electrolyte
 | Criterion | Threshold | Why |
 |---|---|---|
 | Thermodynamic stability | `energy_above_hull ≤ 0.05 eV/atom` | Material won't decompose under battery conditions |
-| Electronic insulation | `band_gap ≥ 2.0 eV` | Prevents short circuits through the electrolyte |
-| Dendrite suppression | `shear_modulus ≥ 6.8 GPa` | Mechanically blocks lithium dendrite growth |
-| Ductility (Pugh Ratio) | `bulk_modulus / shear_modulus > 1.75` | Material can be processed without cracking |
+| Electronic insulation | `band_gap ≥ 2.0 eV` | Prevents electronic short circuits and dendrite nucleation |
+| Dendrite suppression | `shear_modulus ≥ 6.8 GPa` | Mechanically blocks lithium dendrite growth (Monroe-Newman criterion) |
+| Ductility (Pugh Ratio) | `bulk_modulus / shear_modulus > 1.75` | Material can be processed and won't crack at interfaces |
 
-Materials containing toxic elements (`Pb`, `Tl`, `Hg`, `Cd`, `As`) are excluded regardless of their mechanical properties.
+### Thermodynamic Stability — `energy_above_hull ≤ 0.05 eV/atom`
+
+In computational materials science, a material's stability is measured by its **energy above the convex hull** — the thermodynamic distance from the ground-state phase at a given composition. A value of 0 means the material is perfectly stable; higher values indicate a driving force toward decomposition.
+
+A naive approach would filter for `is_stable = True` (hull energy exactly 0), but this throws away hundreds of viable candidates. Many of the most promising solid electrolytes — including the argyrodite Li₆PS₅Cl and LGPS (Li₁₀GeP₂S₁₂) — are technically metastable but can be synthesized and stabilized at room temperature through high-temperature processing and rapid quenching. Screening literature establishes that a tolerance of **≤ 50 meV/atom (0.05 eV/atom)** captures these useful metastable phases while rejecting structures that will never be synthesized.
+
+### Electronic Insulation — `band_gap ≥ 2.0 eV`
+
+The electrolyte must block electrons completely — its job is to let lithium ions through while forcing electrons to travel through the external circuit. If electrons can permeate the electrolyte's bulk, the battery self-discharges. Worse, recent research shows that trace electronic conductivity causes Li⁺ ions migrating through the lattice to be prematurely reduced into metallic lithium within internal pores and grain boundaries — nucleating dendrites from the inside.
+
+The threshold of 2.0 eV also accounts for a known artifact in the DFT calculations the Materials Project uses: the standard PBE functional systematically **underestimates** experimental band gaps. A computed 2.0 eV gap often corresponds to a true experimental gap of 3.5 eV or higher. Setting the threshold at 2.0 eV safely eliminates metals and narrow-gap semiconductors without incorrectly rejecting genuine wide-gap insulators.
+
+### Dendrite Suppression — `shear_modulus ≥ 6.8 GPa`
+
+The **Monroe-Newman criterion** is the theoretical framework for dendrite suppression in solid electrolytes. It states that a solid electrolyte can physically block lithium dendrite propagation if its shear modulus is at least twice that of bulk lithium metal. Since lithium metal has a shear modulus of ~3.4 GPa, the threshold is **≥ 6.8 GPa**.
+
+This is where most soft polymer electrolytes (like PEO) fail — their shear moduli are orders of magnitude below this threshold. The Materials Project computes full elastic tensors using Voigt-Reuss-Hill averaging; the pipeline extracts the VRH shear modulus values.
+
+### Ductility — Pugh Ratio `K/G > 1.75`
+
+Stiffness alone isn't enough. Highly rigid oxide ceramics like garnet LLZO exceed the Monroe-Newman shear modulus requirement by 10×, but they are extremely brittle. During battery cycling, electrodes expand and contract — a brittle electrolyte can't accommodate this, leading to delamination, rising interfacial impedance, and physical cracking that lets lithium infiltrate.
+
+**Pugh's ratio** (bulk modulus K divided by shear modulus G) measures ductility. A ratio above 1.75 indicates the material can deform elastically rather than fracture — the "Goldilocks zone" of being stiff enough to block dendrites but flexible enough to maintain contact with the electrodes. Sulfide-based and halide-based electrolytes typically occupy this zone well.
+
+### Toxic and Scarce Element Exclusion
+
+Manufacturing scalability matters as much as physical properties. LGPS (Li₁₀GeP₂S₁₂) exhibits the highest ionic conductivity ever measured in a solid electrolyte (12 mS/cm), yet its commercial viability is crippled by its reliance on Germanium — scaling to 100 GWh/year of production would require increasing global Germanium output by 120×. Similarly, the garnet LLZO requires Tantalum doping whose global supply is less than double current production. Elements like `Pb`, `Tl`, `Hg`, `Cd`, and `As` add environmental toxicity concerns that preclude consumer use. The pipeline excludes all of these at the Gold layer.
 
 ---
 
@@ -82,7 +115,7 @@ Materials containing toxic elements (`Pb`, `Tl`, `Hg`, `Cd`, `As`) are excluded 
 
 | Layer | Tool | Why |
 |---|---|---|
-| Orchestration | Bruin | Native BigQuery support, clean asset-based DAGs, built-in data quality checks |
+| Orchestration & Transformation | Bruin | Runs Python and BigQuery SQL assets, enforces cross-pipeline dependencies, executes column-level data quality checks after each materialization |
 | Infrastructure | Terraform | Reproducible GCS + BigQuery provisioning, version-controlled infra |
 | Raw storage | Google Cloud Storage | Cheap Parquet storage, natively queryable by BigQuery external tables |
 | Warehouse | BigQuery | Serverless, scales to any size, external table support avoids double storage |
