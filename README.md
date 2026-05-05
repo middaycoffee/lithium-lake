@@ -211,17 +211,29 @@ Quality checks run automatically after each asset materializes.
 
 ## Dashboard
 
-The Gold table is connected to a Looker Studio dashboard showing:
+The full dashboard is available here: [Looker Studio — Solid-State Electrolyte Discovery Pipeline](https://datastudio.google.com/reporting/388a287d-e742-4ac8-9773-c3df8195b233)
 
-- Crystal system distribution among the 47 candidates
-- Scatter plot: `band_gap` vs `energy_above_hull` (the stability-insulation tradeoff)
-- Top candidates table ranked by viability score
+The dashboard connects directly to the Gold and Silver BigQuery tables and shows the full picture from raw API to final candidates.
 
-<!-- Dashboard screenshot -->
-<!-- ![Dashboard](images/dashboard.png) -->
+**Summary scorecards** — top-level numbers from the Gold layer: 47 viable candidates, average hull energy of 0.01 eV/atom, average band gap of 4.18 eV, and average bulk modulus of 57.37 GPa.
 
-<!-- Scatter plot image -->
-<!-- ![Band Gap vs Energy Above Hull](images/scatter.png) -->
+![Summary](summary_info.png)
+
+**Record count by pipeline stage** — shows how aggressively each layer filters the data. The Materials Project database holds 154,000 compounds. The Bronze query pulls 35,000 lithium-containing materials. Silver retains ~1,500 after flattening and typing. Gold cuts that to 47 after applying all four scientific thresholds.
+
+![Record Count by Pipeline Stage](record_count_plain.png)
+
+**Crystal system distribution** — of the 47 final candidates, monoclinic dominates with 12 materials, followed by tetragonal and orthorhombic at 10 each. Cubic and trigonal contribute 6 each. These are all crystal systems known for relatively isotropic mechanical behavior, which is consistent with passing the Pugh Ratio filter.
+
+![Material Count by Crystal System](crystal_system.png)
+
+**Energy above hull vs. band gap scatter** — plots all Silver-layer materials by their two most critical properties. The x-axis spans 0 to 0.05 eV/atom (our stability window) and the y-axis shows band gap in eV. Each color represents a different crystal system. The Gold candidates cluster toward the left edge (low hull energy) and upper region (high band gap).
+
+![Energy Above Hull Distribution](energy_above_hull_dist.png)
+
+**Shear modulus vs. Pugh Ratio bubble chart** — restricted to Gold candidates, with bubble size proportional to band gap. Li₂HfO₃ stands out with a shear modulus near 97 GPa and a Pugh Ratio above 4.5, making it one of the mechanically strongest candidates. LiNbO₃ reaches the highest shear modulus at ~125 GPa.
+
+![Shear Modulus Distribution](shear_modulus_dist.png)
 
 ---
 
@@ -229,13 +241,15 @@ The Gold table is connected to a Looker Studio dashboard showing:
 
 Starting from 2,720 lithium-containing compounds, the pipeline narrows to **47 viable solid-state electrolyte candidates** after applying all four scientific criteria and excluding toxic elements.
 
-<!-- Results table image -->
-<!-- ![Top 10 Candidates](images/results.png) -->
+Candidates are ranked by two sequential criteria: first by `energy_above_hull` ascending (thermodynamic stability — closer to 0 is better), then by `band_gap` descending (wider gap means better electronic insulation). This ordering reflects a deliberate priority: a material that decomposes under battery conditions is disqualifying regardless of its other properties, while among equally stable candidates, the one that better prevents short-circuiting ranks higher.
+
+![Final Materials](final_materials_plain.png)
 
 Key observations:
-- Most candidates with elasticity data are cubic or orthorhombic — crystal systems known for isotropic mechanical properties
+- LiBF₄, LiYF₄, and LiCaAlF₆ occupy the top three spots — all fluoride-based compounds, consistent with the well-known stability of the fluorine chemistry at lithium metal interfaces
 - Several candidates sit at `energy_above_hull = 0`, meaning they are exactly on the convex hull and thermodynamically optimal
 - The Pugh Ratio filter is the most selective after the elasticity data requirement, cutting ~60% of remaining candidates
+- Monoclinic structures dominate the final set, which reflects the fact that many stable lithium compounds naturally adopt lower-symmetry arrangements at room temperature
 
 ---
 

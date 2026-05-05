@@ -34,3 +34,7 @@ ERROR
 naming
 exporting
 unpacking
+
+# documents
+*.png
+*.pdf
