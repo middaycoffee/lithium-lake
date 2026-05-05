@@ -218,26 +218,31 @@ The dashboard connects directly to the Gold and Silver BigQuery tables and shows
 **Summary scorecards** — top-level numbers from the Gold layer: 47 viable candidates, average hull energy of 0.01 eV/atom, average band gap of 4.18 eV, and average bulk modulus of 57.37 GPa.
 
 ![Summary](images/summary_info.png)
+
 *Key metrics from the Gold layer — 47 candidates, average hull energy 0.01 eV/atom, band gap 4.18 eV, bulk modulus 57.37 GPa.*
 
 **Record count by pipeline stage** — shows how aggressively each layer filters the data. The Materials Project database holds 154,000 compounds. The Bronze query pulls 35,000 lithium-containing materials. Silver retains ~1,500 after flattening and typing. Gold cuts that to 47 after applying all four scientific thresholds.
 
 ![Record Count by Pipeline Stage](images/record_count_plain.png)
+
 *154k Materials Project compounds → 35k lithium-containing → 1.5k after Silver cleaning → 47 Gold candidates.*
 
 **Crystal system distribution** — of the 47 final candidates, monoclinic dominates with 12 materials, followed by tetragonal and orthorhombic at 10 each. Cubic and trigonal contribute 6 each. These are all crystal systems known for relatively isotropic mechanical behavior, which is consistent with passing the Pugh Ratio filter.
 
 ![Material Count by Crystal System](images/crystal_system.png)
+
 *Monoclinic leads with 12 candidates, followed by tetragonal and orthorhombic at 10 each.*
 
 **Energy above hull vs. band gap scatter** — plots all Silver-layer materials by their two most critical properties. The x-axis spans 0 to 0.05 eV/atom (our stability window) and the y-axis shows band gap in eV. Each color represents a different crystal system. The Gold candidates cluster toward the left edge (low hull energy) and upper region (high band gap).
 
 ![Energy Above Hull vs Band Gap](images/energy_above_hull_dist.png)
+
 *All Silver-layer materials plotted by thermodynamic stability and band gap, colored by crystal system. Gold candidates cluster toward low hull energy and high band gap.*
 
 **Shear modulus vs. Pugh Ratio bubble chart** — restricted to Gold candidates, with bubble size proportional to band gap. Li₂HfO₃ stands out with a shear modulus near 97 GPa and a Pugh Ratio above 4.5, making it one of the mechanically strongest candidates. LiNbO₃ reaches the highest shear modulus at ~125 GPa.
 
 ![Shear Modulus vs Pugh Ratio](images/shear_modulus_dist.png)
+
 *Gold candidates only. Bubble size = band gap. Li₂HfO₃ stands out with the highest Pugh Ratio (~4.5) at near-100 GPa shear modulus.*
 
 ---
@@ -249,6 +254,7 @@ Starting from 2,720 lithium-containing compounds, the pipeline narrows to **47 v
 Candidates are ranked by two sequential criteria: first by `energy_above_hull` ascending (thermodynamic stability — closer to 0 is better), then by `band_gap` descending (wider gap means better electronic insulation). This ordering reflects a deliberate priority: a material that decomposes under battery conditions is disqualifying regardless of its other properties, while among equally stable candidates, the one that better prevents short-circuiting ranks higher.
 
 ![Final Materials](images/final_materials_plain.png)
+
 *All 47 candidates ranked by viability — primary sort by energy above hull (stability), secondary by band gap (insulation).*
 
 Key observations:
