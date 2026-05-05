@@ -255,7 +255,7 @@ Candidates are ranked by two sequential criteria: first by `energy_above_hull` a
 
 ![Final Materials](images/final_materials_plain.png)
 
-*All 47 candidates ranked by viability — primary sort by energy above hull (stability), secondary by band gap (insulation).*
+*All 47 candidates ranked by viability — primary sort by energy above hull (stability), secondary by band gap (insulation). The table shows 45 distinct chemical formulas because material_id and formula_pretty are different identifiers — two pairs of candidates are polymorphs sharing the same formula but with different crystal structures.*
 
 Key observations:
 - LiBF₄, LiYF₄, and LiCaAlF₆ occupy the top three spots — all fluoride-based compounds, consistent with the well-known stability of the fluorine chemistry at lithium metal interfaces
